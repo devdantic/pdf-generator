@@ -1,27 +1,44 @@
 const express = require('express');
-const puppeteer = require('puppeteer-core');
-const chromium = require('@sparticuz/chromium');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
 app.post('/generate-pdf', async (req, res) => {
+  let browser;
+
   try {
-    const { html, fileName } = req.body;
+    const { html, fileName } = req.body || {};
 
-    const cleanHTML = html
-  .replace(/```html/g, '')
-  .replace(/```/g, '')
-  .trim();
-
-    if (!cleanHTML) {
+    if (typeof html !== 'string' || html.trim() === '') {
       return res.status(400).send('HTML is required');
     }
 
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    const cleanHTML = html
+      .replace(/```html/g, '')
+      .replace(/```/g, '')
+      .trim();
+
+    const useRenderChromium = process.env.RENDER === 'true' && process.platform === 'linux';
+
+    if (!useRenderChromium) {
+      // Local (Windows/Mac): use full puppeteer package.
+      const puppeteer = require('puppeteer');
+
+      browser = await puppeteer.launch({
+        headless: true,
+      });
+    } else {
+      // Render (Linux): use puppeteer-core with sparticuz chromium.
+      const puppeteerCore = require('puppeteer-core');
+      const chromium = require('@sparticuz/chromium');
+      const executablePath = await chromium.executablePath();
+
+      browser = await puppeteerCore.launch({
+        args: chromium.args,
+        executablePath,
+        headless: true,
+      });
+    }
 
     const page = await browser.newPage();
 
@@ -52,9 +69,15 @@ app.post('/generate-pdf', async (req, res) => {
     res.send(pdfBuffer);
 
   } catch (error) {
-  console.error("FULL ERROR:", error);
-  res.status(500).send(error.toString());
-}
+    console.error('FULL ERROR:', error);
+    res.status(500).send(error.toString());
+  } finally {
+    if (browser) {
+      await browser.close().catch((closeError) => {
+        console.error('Error while closing browser:', closeError);
+      });
+    }
+  }
 });
 
 app.listen(3000, () => {
