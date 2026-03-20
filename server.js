@@ -51,9 +51,9 @@ app.post('/generate-pdf', async (req, res) => {
     res.send(pdfBuffer);
 
   } catch (error) {
-    console.error(error);
-    res.status(500).send('Error generating PDF');
-  }
+  console.error("FULL ERROR:", error);
+  res.status(500).send(error.toString());
+}
 });
 
 app.listen(3000, () => {
