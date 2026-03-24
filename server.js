@@ -3,6 +3,11 @@ const express = require('express');
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
+// Ping endpoint to check if server is alive
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 app.post('/generate-pdf', async (req, res) => {
   let browser;
 
